@@ -14,6 +14,7 @@ class BleMessageAscii(object):
         self.rssi = int(parts[1], 16)
         self.temp = int(parts[2], 16)
         self.batt = int(parts[3], 16)
+        self.batt_hex = parts[3]
         self.cs = int(parts[4], 16)
         self.ts = time.time()
      

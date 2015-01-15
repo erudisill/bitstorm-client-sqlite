@@ -19,7 +19,7 @@ class BitStormDb(object):
         result = c.fetchone()
         if result == None:
             self.db.execute('''
-                            CREATE TABLE records(ts timestamp, mac varchar, rssi int, temp int, batt int, cs int)
+                            CREATE TABLE records(ts timestamp, mac varchar, rssi int, temp int, batt int, batt_hex varchar, cs int, router varchar, messageType int, nodeType int)
                             ''')
             self.db.commit()
         c.close()
@@ -29,8 +29,19 @@ class BitStormDb(object):
         
     def insertRecord(self, record):
         c = self.db.cursor()
-        c.execute("insert into records values(?,?,?,?,?,?)", \
-                  (record.ts, record.mac, record.rssi, record. temp, \
-                   record.batt, record.cs))
+        c.execute("insert into records values(?,?,?,?,?,?,?)", \
+                  (record.ts, record.mac, record.rssi, record.temp, \
+                   record.batt, record.batt_hex, record.cs))
         self.db.commit()
         c.close()
+        
+    def insertAppMessageRecord(self, record):
+        mac = "{0:016x}".format(record.extAddr)
+        router = "{0:016x}".format(record.routerAddr)
+        c = self.db.cursor()
+        c.execute("insert into records values(?,?,?,?,?,?,?,?,?,?)", \
+                  (record.ts, mac, record.rssi, record.temperature, \
+                   record.battery, hex(record.battery), record.cs, router, \
+                   record.messageType, record.nodeType))
+        self.db.commit()
+        c.close()        
