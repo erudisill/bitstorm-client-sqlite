@@ -11,6 +11,7 @@ import time
 from binascii import hexlify
 from appMessage import AppMessage
 from cobs import cobs
+from statusMessage import StatusMessage
 
 HOST, PORT = "localhost", 1337
 
@@ -22,11 +23,20 @@ class CpSerialBytes(bytearray):
         final = ("[{0:03}] ".format(len(self)) + " ".join(pairs)).upper()
         return final
 
+def handleStatusMessage(data):
+    s = StatusMessage(data)
+    return str(s)
+
+def handleAppMessage(data, db):
+    r = AppMessage(data)
+    db.insertAppMessageRecord(r)
+
+        
 def client(ip, port):
     db = BitStormDb()
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((ip, port))
-    maf = MessageAsciiFactory()
+    #maf = MessageAsciiFactory()
     numErrors = 0
     numRecords = 0
     recordsInFrame = 0
@@ -37,26 +47,28 @@ def client(ip, port):
             response = sock.recv(1024)
             if not response: 
                 break
+            msg2 = ""
             try:
                 decoded = bytearray(cobs.decode(response))
-                #data = CpSerialBytes(decoded)
-                #print '[RCV] ' + str(data)
-                r = AppMessage(decoded)
-                #print str(msg)
-                db.insertAppMessageRecord(r)
-                numRecords = numRecords + 1
-                recordsInFrame = recordsInFrame + 1
-                elapsed = time.time() - frameStartTime
-                if elapsed >= 5.0:
-                    recordsPerSec = recordsInFrame / elapsed
-                    frameStartTime = time.time()
-                    recordsInFrame = 1
+                if decoded[0] == 0xAB and decoded[1] == 0xAB:
+                    msg2 = handleStatusMessage(decoded)
+                    msg = "Records: {0}\tErrors: {1}\tRPS: {2:.2f}\t{3}".format(numRecords, numErrors, recordsPerSec, msg2)
+                    print msg
+                else:
+                    handleAppMessage(decoded, db)
+                    numRecords = numRecords + 1
+                    recordsInFrame = recordsInFrame + 1
+                    elapsed = time.time() - frameStartTime
+                    if elapsed >= 5.0:
+                        recordsPerSec = recordsInFrame / elapsed
+                        frameStartTime = time.time()
+                        recordsInFrame = 1
+                        
             except Exception:
                 numErrors = numErrors + 1
 
-            msg = "\rRecords: {0}      Errors: {1}      RPS: {2:.2f}\t".format(numRecords, numErrors, recordsPerSec)
-            sys.stdout.write(msg)
-            sys.stdout.flush()
+            #sys.stdout.write(msg)
+            #sys.stdout.flush()
             
             #data = CpSerialBytes(decoded)
             #print '[RCV] ' + str(data)
