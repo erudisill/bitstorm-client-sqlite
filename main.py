@@ -12,8 +12,19 @@ from binascii import hexlify
 from appMessage import AppMessage
 from cobs import cobs
 from statusMessage import StatusMessage
+import json
+import requests
 
 HOST, PORT = "localhost", 1337
+
+tags = {}
+
+class Tag(object):
+    def __init__(self):
+        self.router = ""
+        self.mac = ""
+        self.rssi = -99
+        self.count_better = 0
 
 class CpSerialBytes(bytearray):
     def __str__(self, *args, **kwargs):
@@ -28,9 +39,51 @@ def handleStatusMessage(data):
     return str(s)
 
 def handleAppMessage(data, db):
+#     20 Lot A,   21 Lot B,   30 Lot C
+#      /api/BitStorm/RelocateTag
+#     {
+#     BinId
+#     Mac
+#     LocationId
+#     }
+# data = json.dumps({'BinId':30, 'Mac':'99:99:99:99:99:97'})
+# headers = {'content-type': 'application/json;charset=utf-8'}
+# r = requests.post(uniurl, data, headers=headers)
+    global tags
     r = AppMessage(data)
     db.insertAppMessageRecord(r)
-
+    try:
+        tag = tags[r.mac]
+        # Tag exists, check for new router proximity
+        if r.rssi > -40:
+            if r.router != tag.router:
+                tag.count_better = tag.count_better + 1
+                if tag.count_better >= 3:
+                    tag.router = r.router
+                    tag.count_better = 0
+                    try:
+                        if r.router.lower() == '0004251ca0f65c28':
+                            bin = 20
+                        elif r.router.lower() == '0004251ca0f65c35':
+                            bin = 21
+                        else:
+                            bin = 30
+                        pairs = [r.mac[i:i+2] for i in range(0, len(r.mac), 2)]
+                        mac_fmt = ":".join(pairs)
+#                         data = json.dumps({'BinId':bin, 'Mac': mac_fmt})
+#                         headers = {'content-type': 'application/json;charset=utf-8'}
+#                         r = requests.post("http://unison-alt.cphandheld.com/api/BitStorm/RelocateTag", data, headers=headers)
+                        print 'MOVE ' + str(mac_fmt) + ' TO ' + str(bin)
+                    except Exception as ex:
+                        print ex
+    except Exception as ex:
+        # First time seeing the tag, create a dummy record
+        tag = Tag()
+        tag.mac = r.mac
+        tag.router = "xxxx"
+        tag.rssi = r.rssi
+        tag.count_better = 0
+        tags[r.mac] = tag
         
 def client(ip, port):
     db = BitStormDb()
@@ -64,8 +117,9 @@ def client(ip, port):
                         frameStartTime = time.time()
                         recordsInFrame = 1
                         
-            except Exception:
+            except Exception as ex:
                 numErrors = numErrors + 1
+                print str(ex)
 
             #sys.stdout.write(msg)
             #sys.stdout.flush()

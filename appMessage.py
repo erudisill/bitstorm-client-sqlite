@@ -58,8 +58,10 @@ class AppMessage:
         self.messageType = x[0]
         self.nodeType = x[1]
         self.extAddr = x[2]
+        self.mac = "{0:016X}".format(x[2])
         self.shortAddr = x[3]
         self.routerAddr = x[4]
+        self.router = "{0:016X}".format(x[4])
         self.panId = x[5]
         self.workingChannel = x[6]
         self.parentShortAddr = x[7]
